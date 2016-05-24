@@ -1,6 +1,6 @@
 
 // CLI usage:
-// phantomjs [--ssl-protocol=any] goes-checker.js [-v|--verbose]
+// phantomjs [--ssl-protocol=any] ge-cancellation-checker.phantom.js [-v|--verbose]
 
 var system = require('system');
 var fs = require('fs');
@@ -154,7 +154,7 @@ var steps = [
         });
     },
     function() {
-        page.evaluate(function() {
+        page.evaluate(function(location_id) {
 
             function fireClick(el) {
                 var ev = document.createEvent("MouseEvents");
@@ -162,14 +162,10 @@ var steps = [
                 el.dispatchEvent(ev);
             }
 
-            selector = document.querySelector('select[name=selectedEnrollmentCenter]');
-            console.log('SELECTOR: ' + selector);
-
-            // San Francisco menu value.
-            selector.value = settings.enrollment_location_id;
+            document.querySelector('select[name=selectedEnrollmentCenter]').value = location_id;
             fireClick(document.querySelector('input[name=next]'));
             console.log('Choosing SFO...');
-        });
+        }, settings.enrollment_location_id.toString());
     },
     function() {
         page.evaluate(function() {
