@@ -18,8 +18,9 @@ else {
 }
 
 // Gather Settings...
+var settings = 'Not set'
 try {
-    var settings = JSON.parse(fs.read(PWD + '/config.json'));
+    settings = JSON.parse(fs.read(PWD + '/config.json'));
     if (!settings.username || !settings.username || !settings.init_url || !settings.enrollment_location_id) {
         console.log('Missing username, password, enrollment location ID, and/or initial URL. Exiting...');
         phantom.exit();
@@ -51,6 +52,14 @@ page.onConsoleMessage = function(msg) {
 page.onError = function(msg, trace) {
     if (!VERBOSE) { return; }
     console.error('Error on page: ' + msg);
+    var msgStack = ['PHANTOM ERROR: ' + msg];
+      if (trace && trace.length) {
+        msgStack.push('TRACE:');
+        trace.forEach(function(t) {
+          msgStack.push(' -> ' + (t.file || t.sourceURL) + ': ' + t.line + (t.function ? ' (in function ' + t.function +')' : ''));
+        });
+      }
+    console.error(msgStack.join('\n'));
 }
 
 page.onCallback = function(query, msg) {
@@ -62,7 +71,7 @@ page.onCallback = function(query, msg) {
     if (query == 'report-interview-time') {
         if (VERBOSE) { console.log('Next available appointment is at: ' + msg); }
         else { console.log(msg); }
-        return;  
+        return;
     }
     if (query == 'fatal-error') {
         console.log('Fatal error: ' + msg);
@@ -88,23 +97,25 @@ var steps = [
         });
     },
     function() { // Accept terms
-        page.evaluate(function() {
-            
-            function fireClick(el) {
-                var ev = document.createEvent("MouseEvents");
-                ev.initEvent("click", true, true);
-                el.dispatchEvent(ev);
-            }
-            
-            var $acceptTermsBtn = document.querySelector('a[href="/main/goes/HomePagePreAction.do"]');
+        page.open(settings.init_url + '/HomePagePreAction.do');
+        // page.evaluate(function() {
 
-            if (!$acceptTermsBtn) {
-                return window.callPhantom('fatal-error', 'Unable to find terms acceptance button');
-            }
+        //     function fireClick(el) {
+        //         var ev = document.createEvent("MouseEvents");
+        //         ev.initEvent("click", true, true);
+        //         console.log('--- CLICKING Button: ' + el);
+        //         el.dispatchEvent(ev);
+        //     }
 
-            fireClick($acceptTermsBtn);
-            console.log('Accepting terms...');
-        });
+        //     var $acceptTermsBtn = document.querySelector('a[href="/main/goes/HomePagePreAction.do"]');
+
+        //     if (!$acceptTermsBtn) {
+        //         return window.callPhantom('fatal-error', 'Unable to find terms acceptance button');
+        //     }
+
+        //     fireClick($acceptTermsBtn);
+        //     console.log('Accepting terms...');
+        // });
     },
     function() { // main dashboard
         page.evaluate(function() {
@@ -114,12 +125,11 @@ var steps = [
                 ev.initEvent("click", true, true);
                 el.dispatchEvent(ev);
             }
-            
             var $manageAptBtn = document.querySelector('.bluebutton[name=manageAptm]');
             if (!$manageAptBtn) {
                 return window.callPhantom('fatal-error', 'Unable to find Manage Appointment button');
             }
-
+            console.log(document);
             fireClick($manageAptBtn);
             console.log('Entering appointment management...');
         });
@@ -132,9 +142,9 @@ var steps = [
                 ev.initEvent("click", true, true);
                 el.dispatchEvent(ev);
             }
-            
+
             var $rescheduleBtn = document.querySelector('input[name=reschedule]');
-    
+
             if (!$rescheduleBtn) {
                 return window.callPhantom('fatal-error', 'Unable to find reschedule button. Is it after or less than 24 hrs before your appointment?');
             }
@@ -152,17 +162,20 @@ var steps = [
                 el.dispatchEvent(ev);
             }
 
-            document.querySelector('select[name=selectedEnrollmentCenter]').value = settings.enrollment_location_id.toString();
+            selector = document.querySelector('select[name=selectedEnrollmentCenter]');
+            console.log('SELECTOR: ' + selector);
+
+            // San Francisco menu value.
+            selector.value = "5446";
             fireClick(document.querySelector('input[name=next]'));
             console.log('Choosing SFO...');
         });
     },
     function() {
-
         page.evaluate(function() {
 
             // We made it! Now we have to scrape the page for the earliest available date
-            
+
             var date = document.querySelector('.date table tr:first-child td:first-child').innerHTML;
             var month_year = document.querySelector('.date table tr:last-child td:last-child div').innerHTML;
 

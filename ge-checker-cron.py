@@ -6,12 +6,14 @@ from subprocess import check_output
 from datetime import datetime
 from os import path
 import sys, smtplib, json
+import random
+import time
 
-PWD = path.dirname(sys.argv[0]) 
+PWD = path.dirname(sys.argv[0])
 
 # Get settings
 try:
-    with open('%s/config.json' % PWD) as json_file:    
+    with open('%s/config.json' % PWD) as json_file:
         settings = json.load(json_file)
 except Exception as e:
     print 'Error extracting config file: %s' % e
@@ -44,7 +46,6 @@ CURRENT_INTERVIEW_DATE = datetime.strptime(settings['current_interview_date_str'
 
 def log(msg):
     print msg
-
     if not 'logfile' in settings or not settings['logfile']: return
     with open(settings['logfile'], 'a') as logfile:
         logfile.write('%s: %s\n' % (datetime.now(), msg))
@@ -63,24 +64,36 @@ Content-Type: text/html
 """ % (settings['email_from'], ', '.join(settings['email_to']), avail_apt.strftime('%B %d, %Y'), current_apt.strftime('%B %d, %Y'))
 
     try:
-        server = smtplib.SMTP('localhost')
+        server = smtplib.SMTP('smtp.sendgrid.net:2525')
         server.sendmail(settings['email_from'], settings['email_to'], message)
         server.quit()
     except Exception as e:
         log('Failed to send success email')
 
 
+def display_apt(current_apt, avail_apt):
+    msg = 'New GE appointment:' + avail_apt.strftime('%B %d, %Y') + ' vs: '+ current_apt.strftime('%B %d, %Y')
+    check_output(['osascript', '-e', 'display notification "%s" sound name "/System/Library/Sounds/Submarine.aiff" with title "GE Appointment"' % msg])
 
-new_apt_str = check_output(['phantomjs', '%s/ge-cancellation-checker.phantom.js' % PWD]); # get string from PhantomJS script - formatted like 'July 20, 2015'
-new_apt_str = new_apt_str.strip()
+while True:
+    log('Fetching Appt')
+    new_apt_str = check_output(['phantomjs', '%s/ge-cancellation-checker.phantom.js' % PWD]); # get string from PhantomJS script - formatted like 'July 20, 2015'
+    new_apt_str = new_apt_str.strip()
+    log('Appt: ' + new_apt_str)
 
-try: new_apt = datetime.strptime(new_apt_str, '%B %d, %Y')
-except ValueError as e:
-    log('%s' % new_apt_str)
-    sys.exit()
+    try: new_apt = datetime.strptime(new_apt_str, '%B %d, %Y')
+    except ValueError as e:
+        log('%s' % new_apt_str)
+        sys.exit()
 
-if new_apt < CURRENT_INTERVIEW_DATE: # new appointment is newer than existing!
-    send_apt_available_email(CURRENT_INTERVIEW_DATE, new_apt)   
-    log('Found new appointment on %s (current is on %s)!' % (new_apt, CURRENT_INTERVIEW_DATE))
-else:
-    log('No new appointments. Next available on %s (current is on %s)' % (new_apt, CURRENT_INTERVIEW_DATE))
+    if new_apt < CURRENT_INTERVIEW_DATE: # new appointment is newer than existing!
+        #send_apt_available_email(CURRENT_INTERVIEW_DATE, new_apt)
+        display_apt(CURRENT_INTERVIEW_DATE, new_apt)
+        log('Found new appointment on %s (current is on %s)!' % (new_apt, CURRENT_INTERVIEW_DATE))
+    else:
+        log('No new appointments. Next available on %s (current is on %s)' % (new_apt, CURRENT_INTERVIEW_DATE))
+
+    sleep_for = random.randint(5, 10)
+    log(datetime.now())
+    log('Sleeping for: %d min' % sleep_for)
+    time.sleep(60 * sleep_for)
