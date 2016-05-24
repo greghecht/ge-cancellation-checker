@@ -166,7 +166,7 @@ var steps = [
             console.log('SELECTOR: ' + selector);
 
             // San Francisco menu value.
-            selector.value = "5446";
+            selector.value = settings.enrollment_location_id;
             fireClick(document.querySelector('input[name=next]'));
             console.log('Choosing SFO...');
         });
